@@ -1,0 +1,67 @@
+name: collect-wheels
+
+on:
+  workflow_dispatch:
+    inputs:
+      repository:
+        description: "PyPI repository (pypi or testpypi)"
+        required: false
+        default: "pypi"
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: read
+
+jobs:
+  collect:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install GH CLI
+        run: |
+          sudo apt-get update -y
+          sudo apt-get install -y gh
+          python -m pip install --upgrade pip
+        env:
+          DEBIAN_FRONTEND: noninteractive
+
+      - name: Download manylinux wheel artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          ML_RUN_ID=$(gh run list --workflow manylinux.yml --status success --limit 1 --json databaseId -q '.[0].databaseId')
+          mkdir -p artifacts/manylinux
+          gh run download $ML_RUN_ID --name PyTAS-manylinux-3.11 --dir artifacts/manylinux || true
+          gh run download $ML_RUN_ID --name PyTAS-manylinux-3.12 --dir artifacts/manylinux || true
+
+      - name: Download windows wheel artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          WIN_RUN_ID=$(gh run list --workflow windows-python.yml --status success --limit 1 --json databaseId -q '.[0].databaseId')
+          mkdir -p artifacts/windows
+          gh run download $WIN_RUN_ID --name PyTAS-3.11-windows-wheel --dir artifacts/windows || true
+          gh run download $WIN_RUN_ID --name PyTAS-3.12-windows-wheel --dir artifacts/windows || true
+
+      - name: Assemble dist folder
+        run: |
+          mkdir -p dist
+          find artifacts -name '*.whl' -exec cp {} dist \;
+          echo "Collected wheels:" && ls -la dist
+
+      - name: Upload combined wheels artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyTAS-wheels-all
+          path: dist

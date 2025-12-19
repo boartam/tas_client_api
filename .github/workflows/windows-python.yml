@@ -50,3 +50,9 @@ jobs:
         with:
           name: PyTAS-${{ matrix.python-version }}-windows-wheel
           path: build-windows/python/dist/*.whl
+
+      - name: Upload raw .pyd extension
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyTAS-${{ matrix.python-version }}-windows-pyd
+          path: build-windows/python/src/PyTAS/*.pyd
