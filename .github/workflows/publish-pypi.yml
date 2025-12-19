@@ -57,6 +57,12 @@ jobs:
             exit 1
           fi
 
+      - name: Read python versions
+        id: vers
+        run: |
+          VERS=$(jq -r '.[]' .github/python-versions.json | tr '\n' ' ')
+          echo "list=$VERS" >> $GITHUB_OUTPUT
+
       - name: Download manylinux combined artifacts (wheel + so)
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -64,12 +70,14 @@ jobs:
           set -euo pipefail
           ML_RUN_ID=$(gh run list --workflow manylinux.yml --status success --limit 1 --json databaseId -q '.[0].databaseId')
           mkdir -p artifacts/manylinux
-          LINUX_NAME=$(gh api repos/${{ github.repository }}/actions/runs/$ML_RUN_ID/artifacts --jq '.artifacts[].name' | grep -E "^PyTAS-${{ env.PKG_VERSION }}\.[a-f0-9]{7}-linux$" | head -n1 || true)
-          if [ -n "$LINUX_NAME" ]; then
-            gh run download $ML_RUN_ID --name "$LINUX_NAME" --dir artifacts/manylinux || true
-          else
-            echo "Warning: No manylinux artifact matching version ${{ env.PKG_VERSION }} found" >&2
-          fi
+          for PV in ${{ steps.vers.outputs.list }}; do
+            NAME=$(gh api repos/${{ github.repository }}/actions/runs/$ML_RUN_ID/artifacts --jq '.artifacts[].name' | grep -E "^PyTAS-${{ env.PKG_VERSION }}\.[a-f0-9]{7}-${PV}-linux$" | head -n1 || true)
+            if [ -n "$NAME" ]; then
+              gh run download $ML_RUN_ID --name "$NAME" --dir artifacts/manylinux || true
+            else
+              echo "Warning: No manylinux artifact for Python ${PV} matching version ${{ env.PKG_VERSION }} found" >&2
+            fi
+          done
 
       - name: Download windows combined artifacts (wheel + pyd)
         env:
@@ -78,12 +86,14 @@ jobs:
           set -euo pipefail
           WIN_RUN_ID=$(gh run list --workflow windows-python.yml --status success --limit 1 --json databaseId -q '.[0].databaseId')
           mkdir -p artifacts/windows
-          WIN_NAME=$(gh api repos/${{ github.repository }}/actions/runs/$WIN_RUN_ID/artifacts --jq '.artifacts[].name' | grep -E "^PyTAS-${{ env.PKG_VERSION }}\.[a-f0-9]{7}-windows$" | head -n1 || true)
-          if [ -n "$WIN_NAME" ]; then
-            gh run download $WIN_RUN_ID --name "$WIN_NAME" --dir artifacts/windows || true
-          else
-            echo "Warning: No windows artifact matching version ${{ env.PKG_VERSION }} found" >&2
-          fi
+          for PV in ${{ steps.vers.outputs.list }}; do
+            NAME=$(gh api repos/${{ github.repository }}/actions/runs/$WIN_RUN_ID/artifacts --jq '.artifacts[].name' | grep -E "^PyTAS-${{ env.PKG_VERSION }}\.[a-f0-9]{7}-${PV}-windows$" | head -n1 || true)
+            if [ -n "$NAME" ]; then
+              gh run download $WIN_RUN_ID --name "$NAME" --dir artifacts/windows || true
+            else
+              echo "Warning: No windows artifact for Python ${PV} matching version ${{ env.PKG_VERSION }} found" >&2
+            fi
+          done
 
       - name: Assemble dist folder
         run: |

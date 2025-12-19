@@ -7,11 +7,24 @@ on:
   workflow_dispatch:
 
 jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - id: gen
+        name: Generate matrix from .github/python-versions.json
+        run: |
+          JSON=$(jq -c '[.[] | {"python-version": .}]' .github/python-versions.json)
+          echo "matrix=$JSON" >> $GITHUB_OUTPUT
+
   build-windows-wheel:
+    needs: prepare-matrix
     runs-on: windows-latest
     strategy:
-      matrix:
-        python-version: ["3.11", "3.12"]
+      matrix: ${{ fromJSON(needs.prepare-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -60,7 +73,7 @@ jobs:
       - name: Upload combined wheel + pyd artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PyTAS-${{ env.PKG_VERSION }}.${{ env.SHORT_SHA }}-windows
+          name: PyTAS-${{ env.PKG_VERSION }}.${{ env.SHORT_SHA }}-${{ matrix.python-version }}-windows
           path: |
             build-windows/python/dist/*.whl
             build-windows/python/src/PyTAS/*.pyd

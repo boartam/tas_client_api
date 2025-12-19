@@ -7,15 +7,32 @@ on:
   workflow_dispatch:
 
 jobs:
+  prepare-matrix:
+    runs-on: ubuntu-latest
+    outputs:
+      matrix: ${{ steps.gen.outputs.matrix }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - id: gen
+        name: Generate matrix from .github/python-versions.json
+        run: |
+          VERS=$(jq -r '.[]' .github/python-versions.json | tr '\n' ' ')
+          JSON="["
+          SEP=""
+          for V in $VERS; do
+            TAG="cp${V/./}-cp${V/./}"
+            JSON="$JSON$SEP{\"py_ver\":\"$V\",\"py_tag\":\"$TAG\"}"
+            SEP=",";
+          done
+          JSON="$JSON]"
+          echo "matrix=$JSON" >> $GITHUB_OUTPUT
+
   build-manylinux:
+    needs: prepare-matrix
     runs-on: ubuntu-latest
     strategy:
-      matrix:
-        include:
-          - py_ver: "3.11"
-            py_tag: "cp311-cp311"
-          - py_ver: "3.12"
-            py_tag: "cp312-cp312"
+      matrix: ${{ fromJSON(needs.prepare-matrix.outputs.matrix) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -61,7 +78,7 @@ jobs:
       - name: Upload combined wheel + so artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PyTAS-${{ env.PKG_VERSION }}.${{ env.SHORT_SHA }}-linux
+          name: PyTAS-${{ env.PKG_VERSION }}.${{ env.SHORT_SHA }}-${{ matrix.py_ver }}-linux
           path: |
             dist/*.whl
             build-*/python/src/PyTAS/*.so
