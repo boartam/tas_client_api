@@ -26,7 +26,7 @@
 #ifdef TAS_DEBUG	// Check if TAS debugging is enabled
 #define TAS_DBG 1	//!< \brief debugging prints enabled
 #else
-#define TAS_DBG 0	//!< \brief debugging prints disabled
+#define TAS_DBG 1	//!< \brief debugging prints disabled
 #endif
 
 // Inspired by StackOverflow answer: https://stackoverflow.com/a/1644898

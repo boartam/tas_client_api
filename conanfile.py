@@ -55,7 +55,7 @@ class TasClientApiRecipe(ConanFile):
     default_options = {
         "shared": False, 
         "fPIC": True,
-        "python": False,
+        "python": True,
         "docs": False,
         "tests": False
         }

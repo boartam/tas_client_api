@@ -17,7 +17,7 @@ class InstallPlatlib(install):
         self.install_lib=self.install_platlib
 
 setup(
-    name="@PYTHON_PROJECT@",
+    name="@PYTHON_PREFIX@@PYTHON_PROJECT@",
     version="@PROJECT_VERSION@",
     description="A python interface for TAS",
     long_description="This library provides an interface for the C++ TAS library",
@@ -34,7 +34,7 @@ setup(
     ),
     package_dir={"": "src"},
     package_data={
-        "@PYTHON_PROJECT@":["$<$<NOT:$<PLATFORM_ID:Windows>>:'.libs/*'>", "$<TARGET_FILE_NAME:PyTAS>"],
+        "@PYTHON_PROJECT@":["$<$<NOT:$<PLATFORM_ID:Windows>>:'.libs/*'>", "$<TARGET_FILE_NAME:@PYTHON_PROJECT@>"],
     },
     classifiers=[
         "Development Status :: 5 - Production/Stable",

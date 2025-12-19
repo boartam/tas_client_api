@@ -6,3 +6,7 @@ install
 CMakeUserPresets.json
 
 __pycache__
+conan.lock
+conaninfo.txt
+graph_info.json
+conanbuildinfo.txt

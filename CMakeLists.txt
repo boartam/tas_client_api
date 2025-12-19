@@ -15,12 +15,17 @@ cmake_minimum_required(VERSION "${MIN_VER_CMAKE}" FATAL_ERROR)
 # Project definition
 # -----------------------------------------------------------------------------
 project(tas_client_api
-    VERSION 1.0.2
+    VERSION 1.0.12
     DESCRIPTION "Infineon's Tool Access Socket (TAS) Client API"
     HOMEPAGE_URL "https://github.com/Infineon/tas_client_api"
     LANGUAGES CXX
 )
 set(TAS_CLIENT_COPYRIGHT "(c) Infineon Technologies AG 2024")
+
+# Ensure C++17 standard is used for all targets
+set(CMAKE_CXX_STANDARD 17)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
 
 # -----------------------------------------------------------------------------
 # Break in case of popular CMake configuration mistakes
@@ -35,9 +40,25 @@ endif()
 # -----------------------------------------------------------------------------
 # Project options
 # -----------------------------------------------------------------------------
-option(TAS_CLIENT_API_BUILD_PYTHON "Build Python interface if enabled" OFF)
+option(TAS_CLIENT_API_BUILD_PYTHON "Build Python interface if enabled" ON)
 option(TAS_CLIENT_API_BUILD_TEST "Build test binaries if enabled" OFF)
 option(TAS_CLIENT_API_BUILD_DOCS "Build documentation using doxygen if enabled" OFF)
+option(TAS_CLIENT_API_FORCE_PYTHON "Force-build Python even when cross-compiling" OFF)
+
+# If cross-compiling (host system differs from target system), disable Python by default
+# Cross-building the Python extension requires a target Python dev environment,
+# which is typically unavailable when building from a different host OS.
+if(NOT CMAKE_HOST_SYSTEM_NAME STREQUAL CMAKE_SYSTEM_NAME)
+    if(TAS_CLIENT_API_FORCE_PYTHON)
+        message(STATUS "Cross-compilation detected (host: ${CMAKE_HOST_SYSTEM_NAME}, target: ${CMAKE_SYSTEM_NAME}). Forcing Python build ON: packaging/tests will be skipped.")
+        set(TAS_CLIENT_API_BUILD_PYTHON ON CACHE BOOL "Build Python interface if enabled" FORCE)
+    else()
+        if(TAS_CLIENT_API_BUILD_PYTHON)
+            message(WARNING "Cross-compilation detected (host: ${CMAKE_HOST_SYSTEM_NAME}, target: ${CMAKE_SYSTEM_NAME}). Disabling TAS_CLIENT_API_BUILD_PYTHON to avoid missing target Python dev. Pass -DTAS_CLIENT_API_FORCE_PYTHON=ON to override.")
+        endif()
+        set(TAS_CLIENT_API_BUILD_PYTHON OFF CACHE BOOL "Build Python interface if enabled" FORCE)
+    endif()
+endif()
 
 # -----------------------------------------------------------------------------
 # Soruce and test files

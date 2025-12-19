@@ -1,0 +1,39 @@
+name: manylinux-wheels
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-manylinux:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Pull manylinux image
+        run: docker pull quay.io/pypa/manylinux2014_x86_64
+
+      - name: Build wheels in manylinux
+        run: |
+          docker run --rm -v $PWD:/work -w /work quay.io/pypa/manylinux2014_x86_64 /bin/bash -lc '
+            set -euxo pipefail
+            for PYBIN in /opt/python/cp311-cp311/bin/python /opt/python/cp312-cp312/bin/python; do
+              $PYBIN -m pip install --upgrade pip
+              $PYBIN -m pip install cmake ninja pybind11 setuptools wheel auditwheel
+              VTAG=$($PYBIN -c "import sys;print(f\"cp{sys.version_info.major}{sys.version_info.minor}-cp{sys.version_info.major}{sys.version_info.minor}\")")
+              BUILD_DIR=/work/build-${VTAG}
+              cmake -S /work -B ${BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Release -DTAS_CLIENT_API_BUILD_PYTHON=ON -DPython_EXECUTABLE=$PYBIN
+              cmake --build ${BUILD_DIR} --target python_package -j"$(nproc)"
+              mkdir -p /work/dist
+              auditwheel repair -w /work/dist ${BUILD_DIR}/python/dist/*.whl || true
+            done
+          '
+
+      - name: Upload repaired wheels
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyTAS-manylinux-wheels
+          path: dist/*.whl
