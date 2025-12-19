@@ -48,14 +48,10 @@ jobs:
             auditwheel repair -w /work/dist ${BUILD_DIR}/python/dist/*.whl || true
           '
 
-      - name: Upload repaired wheels
+      - name: Upload combined wheel + so artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PyTAS-manylinux-${{ matrix.py_ver }}
-          path: dist/*.whl
-
-      - name: Upload raw .so extensions
-        uses: actions/upload-artifact@v4
-        with:
-          name: PyTAS-manylinux-${{ matrix.py_ver }}-so
-          path: build-*/python/src/PyTAS/*.so
+          name: PyTAS-${{ matrix.py_ver }}-linux
+          path: |
+            dist/*.whl
+            build-*/python/src/PyTAS/*.so

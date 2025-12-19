@@ -45,14 +45,10 @@ jobs:
         run: |
           cmake --build build-windows --target python_package --config Release -- /m
 
-      - name: Upload wheel artifact
+      - name: Upload combined wheel + pyd artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PyTAS-${{ matrix.python-version }}-windows-wheel
-          path: build-windows/python/dist/*.whl
-
-      - name: Upload raw .pyd extension
-        uses: actions/upload-artifact@v4
-        with:
-          name: PyTAS-${{ matrix.python-version }}-windows-pyd
-          path: build-windows/python/src/PyTAS/*.pyd
+          name: PyTAS-${{ matrix.python-version }}-windows
+          path: |
+            build-windows/python/dist/*.whl
+            build-windows/python/src/PyTAS/*.pyd
