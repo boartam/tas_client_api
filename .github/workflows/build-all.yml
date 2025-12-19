@@ -13,27 +13,108 @@ on:
         required: false
         default: ""
 
+permissions:
+  contents: write
+
 jobs:
+  bump-version:
+    runs-on: ubuntu-latest
+    outputs:
+      commit_sha: ${{ steps.out.outputs.commit_sha }}
+    steps:
+      - name: Checkout (full history)
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Bump CMake version from tag (if tagged)
+        id: bump
+        shell: bash
+        env:
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/') }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ "$IS_TAG" != "true" ]; then
+            echo "Not a tag event; skipping version bump."
+            exit 0
+          fi
+          TAG="$REF_NAME"
+          # Validate tag format vX.Y or vX.Y.Z or similar
+          if ! echo "$TAG" | grep -Eq '^v[0-9]+(\.[0-9]+)*$'; then
+            echo "Invalid tag format: $TAG (expected v<semver>, e.g., v1.0.12)" >&2
+            exit 1
+          fi
+          NEW_VER="${TAG#v}"
+          # Switch to default branch (assumes main) and update there
+          git fetch origin main
+          git checkout -B main origin/main
+          export NEW_VER
+          python3 - << 'PY'
+import re, io, os, sys
+fn = 'CMakeLists.txt'
+txt = io.open(fn, 'r', encoding='utf-8').read()
+m = re.search(r"project\s*\(\s*tas_client_api[\s\S]*?VERSION\s*([0-9]+(?:\.[0-9]+)*)", txt, re.I|re.S)
+if not m:
+    print('VERSION not found in CMakeLists.txt', file=sys.stderr)
+    sys.exit(1)
+old = m.group(1)
+new = os.environ.get('NEW_VER')
+if not new:
+    print('NEW_VER not set', file=sys.stderr)
+    sys.exit(1)
+if old == new:
+    print('Version already up-to-date:', new)
+    sys.exit(0)
+new_txt = re.sub(r"(project\s*\(\s*tas_client_api[\s\S]*?VERSION\s*)([0-9]+(?:\.[0-9]+)*)", r"\g<1>"+new, txt, flags=re.I|re.S)
+io.open(fn, 'w', encoding='utf-8').write(new_txt)
+print(f'Bumped version: {old} -> {new}')
+PY
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if ! git diff --quiet -- CMakeLists.txt; then
+            git add CMakeLists.txt
+            git commit -m "chore(ci): bump version to ${NEW_VER} from tag"
+            git push origin HEAD:main
+          else
+            echo "No version change to commit."
+          fi
+      - name: Output bumped commit SHA
+        id: out
+        run: |
+          SHA=$(git rev-parse HEAD || echo "")
+          echo "commit_sha=$SHA" >> $GITHUB_OUTPUT
+
   prepare:
     runs-on: ubuntu-latest
     outputs:
       versions: ${{ steps.out.outputs.versions }}
       version: ${{ steps.out.outputs.version }}
       short_sha: ${{ steps.out.outputs.short_sha }}
+      ref: ${{ steps.out.outputs.ref }}
+    needs: bump-version
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          # Use bumped commit when tag push; otherwise the triggering SHA
+          ref: ${{ needs.bump-version.outputs.commit_sha != '' && needs.bump-version.outputs.commit_sha || github.sha }}
 
       - name: Compute outputs (versions, version, short_sha)
         id: out
         run: |
           set -euo pipefail
-          VERS=$(cat .github/python-versions.json)
+          VERS=$(jq -c '.' .github/python-versions.json)
           echo "versions=$VERS" >> $GITHUB_OUTPUT
-          VERSION=$(python3 -c "import re,sys,io; s=io.open('CMakeLists.txt','r',encoding='utf-8').read(); m=re.search(r'project\\s*\\(\\s*tas_client_api[\\s\\S]*?VERSION\\s*([0-9]+(?:\\.[0-9]+)*)', s, re.IGNORECASE|re.DOTALL); print(m.group(1)) if m else sys.exit('VERSION not found in CMakeLists.txt')")
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            VERSION="${GITHUB_REF_NAME#v}"
+          else
+            VERSION=$(python3 -c "import re,sys,io; s=io.open('CMakeLists.txt','r',encoding='utf-8').read(); m=re.search(r'project\\s*\\(\\s*tas_client_api[\\s\\S]*?VERSION\\s*([0-9]+(?:\\.[0-9]+)*)', s, re.IGNORECASE|re.DOTALL); print(m.group(1)) if m else sys.exit('VERSION not found in CMakeLists.txt')")
+          fi
           echo "version=$VERSION" >> $GITHUB_OUTPUT
-          SHORT_SHA=$(echo "$GITHUB_SHA" | cut -c1-7)
+          SHORT_SHA=$(git rev-parse --short=7 HEAD)
           echo "short_sha=$SHORT_SHA" >> $GITHUB_OUTPUT
+          REF=$(git rev-parse HEAD)
+          echo "ref=$REF" >> $GITHUB_OUTPUT
 
   build-manylinux:
     needs: prepare
@@ -47,6 +128,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Pull manylinux image
         run: docker pull quay.io/pypa/manylinux2014_x86_64
@@ -84,7 +167,7 @@ jobs:
             dist/*.whl
             build-*/python/src/PyTAS/*.so
 
-  build-windows-wheel:
+  build-windows:
     needs: prepare
     runs-on: windows-latest
     env:
@@ -96,6 +179,8 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.ref }}
 
       - name: Set up Python ${{ matrix.python-version }}
         uses: actions/setup-python@v5
@@ -137,7 +222,7 @@ jobs:
             build-windows/python/src/PyTAS/*.pyd
 
   collect:
-    needs: [prepare, build-manylinux, build-windows-wheel]
+    needs: [prepare, build-manylinux, build-windows]
     runs-on: ubuntu-latest
     env:
       PKG_VERSION: ${{ needs.prepare.outputs.version }}
@@ -178,8 +263,16 @@ jobs:
           find artifacts -name '*.so' -exec cp {} dist \;
           echo "Collected files:" && ls -la dist
 
+      - name: Compute final artifact name (tagged vs untagged)
+        run: |
+          if [ "${{ startsWith(github.ref, 'refs/tags/') }}" = "true" ]; then
+            echo "ARTIFACT_NAME=PyTAS-${PKG_VERSION}" >> $GITHUB_ENV
+          else
+            echo "ARTIFACT_NAME=PyTAS-${PKG_VERSION}.${SHORT_SHA}" >> $GITHUB_ENV
+          fi
+
       - name: Upload combined artifact (wheels + pyd + so)
         uses: actions/upload-artifact@v4
         with:
-          name: PyTAS-${{ env.PKG_VERSION }}
+          name: ${{ env.ARTIFACT_NAME }}
           path: dist
