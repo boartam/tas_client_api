@@ -11,8 +11,11 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        py_tag: ["cp311-cp311", "cp312-cp312"]
-        py_ver: ["3.11", "3.12"]
+        include:
+          - py_ver: "3.11"
+            py_tag: "cp311-cp311"
+          - py_ver: "3.12"
+            py_tag: "cp312-cp312"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
