@@ -37,7 +37,7 @@ class CTasClientServerCon
 
 public:
 	CTasClientServerCon(const CTasClientServerCon&) = delete; //!< \brief delete the copy constructor
-	CTasClientServerCon operator= (const CTasClientServerCon&) = delete; //!< \brief delete copy-assignment operator
+	CTasClientServerCon& operator= (const CTasClientServerCon&) = delete; //!< \brief delete copy-assignment operator
 
 	//! \brief Object destructor. Used for cleanup.
 	~CTasClientServerCon();

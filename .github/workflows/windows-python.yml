@@ -1,0 +1,52 @@
+name: windows-python-wheels
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build-windows-wheel:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          architecture: x64
+
+      - name: Install build dependencies (CMake, Ninja, pybind11)
+        shell: pwsh
+        run: |
+          python -m pip install --upgrade pip
+          pip install cmake ninja pybind11 wheel setuptools
+
+      - name: Export pybind11 CMake dir
+        id: p11
+        shell: pwsh
+        run: |
+          $p11 = python -c "import pybind11; print(pybind11.get_cmake_dir())"
+          echo "P11_DIR=$p11" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Configure CMake (Windows, Release)
+        shell: pwsh
+        run: |
+          cmake -S . -B build-windows -G "Visual Studio 17 2022" -A x64 -DCMAKE_BUILD_TYPE=Release -DTAS_CLIENT_API_BUILD_PYTHON=ON -Dpybind11_DIR="$env:P11_DIR"
+
+      - name: Build Python wheel via CMake target
+        shell: pwsh
+        run: |
+          cmake --build build-windows --target python_package --config Release -- /m
+
+      - name: Upload wheel artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: PyTAS-${{ matrix.python-version }}-windows-wheel
+          path: build-windows/python/dist/*.whl
