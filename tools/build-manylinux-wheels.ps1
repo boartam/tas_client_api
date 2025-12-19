@@ -16,9 +16,10 @@ for PYTAG in $PYTAGS; do
   PYBIN=/opt/python/${PYTAG}/bin/python
   $PYBIN -m pip install --upgrade pip
   $PYBIN -m pip install cmake ninja pybind11 setuptools wheel auditwheel
+  P11_DIR=$($PYBIN -c "import pybind11,sys; print(pybind11.get_cmake_dir())")
   VTAG=$(python -c "print('${PYTAG}')")
   BUILD_DIR=/work/build-${VTAG}
-  cmake -S /work -B ${BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Release -DTAS_CLIENT_API_BUILD_PYTHON=ON -DPython_EXECUTABLE=$PYBIN
+  cmake -S /work -B ${BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Release -DTAS_CLIENT_API_BUILD_PYTHON=ON -DPython_EXECUTABLE=$PYBIN -Dpybind11_DIR="$P11_DIR"
   cmake --build ${BUILD_DIR} --target python_package -j$(nproc)
   mkdir -p /work/dist
   auditwheel repair -w /work/dist ${BUILD_DIR}/python/dist/*.whl || true
