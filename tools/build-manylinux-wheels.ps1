@@ -16,6 +16,11 @@ for PYTAG in $PYTAGS; do
   PYBIN=/opt/python/${PYTAG}/bin/python
   $PYBIN -m pip install --upgrade pip
   $PYBIN -m pip install cmake ninja pybind11 setuptools wheel auditwheel
+  if [ -f /opt/rh/devtoolset-10/enable ]; then source /opt/rh/devtoolset-10/enable; elif [ -f /opt/rh/devtoolset-9/enable ]; then source /opt/rh/devtoolset-9/enable; fi
+  export PATH="$(dirname "$PYBIN"):$PATH"
+  gcc --version || true
+  cmake --version || true
+  ninja --version || true
   P11_DIR=$($PYBIN -c "import pybind11,sys; print(pybind11.get_cmake_dir())")
   VTAG=$(python -c "print('${PYTAG}')")
   BUILD_DIR=/work/build-${VTAG}
