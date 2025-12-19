@@ -22,16 +22,7 @@ jobs:
 
       - name: Extract project version from CMakeLists.txt
         run: |
-          VERSION=$(python3 - << 'PY'
-import re, sys
-with open('CMakeLists.txt','r',encoding='utf-8') as f:
-    s=f.read()
-m=re.search(r"project\s*\(\s*tas_client_api[\s\S]*?VERSION\s*([0-9]+(?:\.[0-9]+)*)", s, re.IGNORECASE)
-if not m:
-    sys.exit('VERSION not found in CMakeLists.txt')
-print(m.group(1))
-PY
-          )
+          VERSION=$(python3 -c "import re,sys,io; s=io.open('CMakeLists.txt','r',encoding='utf-8').read(); m=re.search(r'project\\s*\\(\\s*tas_client_api[\\s\\S]*?VERSION\\s*([0-9]+(?:\\.[0-9]+)*)', s, re.IGNORECASE|re.DOTALL); print(m.group(1)) if m else sys.exit('VERSION not found in CMakeLists.txt')")
           echo "PKG_VERSION=$VERSION" >> $GITHUB_ENV
 
       - name: Compute short commit SHA
@@ -70,7 +61,7 @@ PY
       - name: Upload combined wheel + so artifact
         uses: actions/upload-artifact@v4
         with:
-          name: PyTAS-${{ env.PKG_VERSION }}${{ env.SHORT_SHA }}-linux
+          name: PyTAS-${{ env.PKG_VERSION }}.${{ env.SHORT_SHA }}-linux
           path: |
             dist/*.whl
             build-*/python/src/PyTAS/*.so
