@@ -19,12 +19,16 @@ jobs:
       - name: Build wheels in manylinux
         run: |
           docker run --rm -v $PWD:/work -w /work quay.io/pypa/manylinux2014_x86_64 /bin/bash -lc '
-            set -euxo pipefail
+            set -euo pipefail
             for PYBIN in /opt/python/cp311-cp311/bin/python /opt/python/cp312-cp312/bin/python; do
+              export PIP_ROOT_USER_ACTION=ignore
               $PYBIN -m pip install --upgrade pip
               $PYBIN -m pip install cmake ninja pybind11 setuptools wheel auditwheel
-              # Ensure compilers and tools are available
+              # Ensure compilers and tools are available; handle MANPATH under set -u
+              export MANPATH=${MANPATH-""}
+              set +u
               if [ -f /opt/rh/devtoolset-10/enable ]; then source /opt/rh/devtoolset-10/enable; elif [ -f /opt/rh/devtoolset-9/enable ]; then source /opt/rh/devtoolset-9/enable; fi
+              set -u
               export PATH="$(dirname "$PYBIN"):$PATH"
               gcc --version || true
               cmake --version || true

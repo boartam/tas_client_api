@@ -14,9 +14,13 @@ $script = @'
 set -euxo pipefail
 for PYTAG in $PYTAGS; do
   PYBIN=/opt/python/${PYTAG}/bin/python
+  export PIP_ROOT_USER_ACTION=ignore
   $PYBIN -m pip install --upgrade pip
   $PYBIN -m pip install cmake ninja pybind11 setuptools wheel auditwheel
+  export MANPATH=${MANPATH-""}
+  set +u
   if [ -f /opt/rh/devtoolset-10/enable ]; then source /opt/rh/devtoolset-10/enable; elif [ -f /opt/rh/devtoolset-9/enable ]; then source /opt/rh/devtoolset-9/enable; fi
+  set -u
   export PATH="$(dirname "$PYBIN"):$PATH"
   gcc --version || true
   cmake --version || true
