@@ -17,7 +17,7 @@ jobs:
       - id: gen
         name: Generate matrix from .github/python-versions.json
         run: |
-          JSON=$(jq -c '[.[] | {"python-version": .}]' .github/python-versions.json)
+          JSON=$(jq -c '{ "python-version": . }' .github/python-versions.json)
           echo "matrix=$JSON" >> $GITHUB_OUTPUT
 
   build-windows-wheel:

@@ -17,15 +17,7 @@ jobs:
       - id: gen
         name: Generate matrix from .github/python-versions.json
         run: |
-          VERS=$(jq -r '.[]' .github/python-versions.json | tr '\n' ' ')
-          JSON="["
-          SEP=""
-          for V in $VERS; do
-            TAG="cp${V/./}-cp${V/./}"
-            JSON="$JSON$SEP{\"py_ver\":\"$V\",\"py_tag\":\"$TAG\"}"
-            SEP=",";
-          done
-          JSON="$JSON]"
+          JSON=$(jq -c '{ "py_ver": . }' .github/python-versions.json)
           echo "matrix=$JSON" >> $GITHUB_OUTPUT
 
   build-manylinux:
@@ -54,7 +46,9 @@ jobs:
         run: |
           docker run --rm -v $PWD:/work -w /work quay.io/pypa/manylinux2014_x86_64 /bin/bash -lc '
             set -euo pipefail
-            PYBIN=/opt/python/${{ matrix.py_tag }}/bin/python
+            PV="${{ matrix.py_ver }}"
+            PTAG=$(echo "$PV" | tr -d '.')
+            PYBIN=/opt/python/cp${PTAG}-cp${PTAG}/bin/python
             export PIP_ROOT_USER_ACTION=ignore
             $PYBIN -m pip install --upgrade pip
             $PYBIN -m pip install cmake ninja pybind11 setuptools wheel auditwheel
@@ -68,7 +62,7 @@ jobs:
             cmake --version || true
             ninja --version || true
             P11_DIR=$($PYBIN -c "import pybind11,sys; print(pybind11.get_cmake_dir())")
-            BUILD_DIR=/work/build-${{ matrix.py_tag }}
+            BUILD_DIR=/work/build-cp${PTAG}
             cmake -S /work -B ${BUILD_DIR} -G Ninja -DCMAKE_BUILD_TYPE=Release -DTAS_CLIENT_API_BUILD_PYTHON=ON -DPython_EXECUTABLE=$PYBIN -Dpybind11_DIR="$P11_DIR"
             cmake --build ${BUILD_DIR} --target python_package -j"$(nproc)"
             mkdir -p /work/dist
